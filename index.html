@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>داشبورد مقارنة المخزون</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0e1a;--surface:#111827;--surface2:#1a2235;--border:#1e2d45;--accent:#00d4aa;--accent2:#3b82f6;--danger:#ef4444;--warning:#f59e0b;--success:#10b981;--purple:#8b5cf6;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans Arabic',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(circle at 20% 20%,rgba(0,212,170,.05) 0%,transparent 50%),radial-gradient(circle at 80% 80%,rgba(59,130,246,.05) 0%,transparent 50%);pointer-events:none;z-index:0}
+.container{max-width:1500px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+header{border-bottom:1px solid var(--border);padding:20px 0;background:rgba(10,14,26,.95);backdrop-filter:blur(20px);position:sticky;top:0;z-index:100}
+.header-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:22px}
+.logo-text h1{font-size:18px;font-weight:700}
+.logo-text p{font-size:11px;color:var(--text3);margin-top:2px}
+.header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.header-badge{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.2);padding:4px 12px;border-radius:20px}
+.upload-section{padding:24px 0 16px}
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:640px){.upload-grid{grid-template-columns:1fr}}
+.upload-card{border:2px dashed var(--border);border-radius:16px;padding:20px;text-align:center;cursor:pointer;transition:all .3s;background:var(--surface);position:relative;overflow:hidden}
+.upload-card:hover{border-color:var(--accent);background:rgba(0,212,170,.05)}
+.upload-card.active{border-color:var(--accent);border-style:solid;background:rgba(0,212,170,.08)}
+.upload-card input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
+.upload-icon{font-size:28px;margin-bottom:8px;color:var(--text3);transition:color .3s}
+.upload-card.active .upload-icon{color:var(--accent)}
+.upload-label{font-size:13px;font-weight:600;margin-bottom:3px}
+.upload-sub{font-size:11px;color:var(--text3)}
+.upload-filename{font-size:11px;color:var(--accent);margin-top:6px;font-family:'JetBrains Mono',monospace;word-break:break-all}
+.compare-btn{margin-top:14px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;font-family:'IBM Plex Sans Arabic',sans-serif;cursor:pointer;transition:all .3s}
+.compare-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,212,170,.3)}
+.compare-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+#dashboard{animation:fadeUp .5s ease forwards}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:18px 0 10px}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:500px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;position:relative;overflow:hidden;transition:transform .2s}
+.kpi-card:hover{transform:translateY(-3px)}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kpi-color,var(--accent))}
+.kpi-icon{font-size:18px;margin-bottom:6px}
+.kpi-value{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;color:var(--kpi-color,var(--text));line-height:1}
+.kpi-label{font-size:10px;color:var(--text3);margin-top:4px;line-height:1.4}
+.tabs{display:flex;gap:4px;padding:14px 0 0;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
+.tab{padding:9px 18px;border-radius:10px 10px 0 0;font-size:12px;font-weight:500;cursor:pointer;color:var(--text2);border:1px solid transparent;border-bottom:none;transition:all .2s;display:flex;align-items:center;gap:7px;margin-bottom:-1px;background:transparent;font-family:'IBM Plex Sans Arabic',sans-serif}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{color:var(--text);background:var(--surface);border-color:var(--border)}
+.tab .badge{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(255,255,255,.08);color:var(--text2)}
+.tab.active .badge{background:var(--tab-color,var(--accent));color:#000}
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--surface2);color:var(--text3);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--text)}
+tbody tr{border-bottom:1px solid rgba(30,45,69,.5);transition:background .15s}
+tbody tr:hover{background:var(--surface2)}
+tbody tr:last-child{border-bottom:none}
+td{padding:9px 12px;color:var(--text2);vertical-align:middle}
+.td-mono{font-family:'JetBrains Mono',monospace;font-size:10px}
+.td-desc{color:var(--text);font-weight:500;font-size:12px}
+.td-sub{color:var(--text3);font-size:10px;margin-top:2px}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.pill-surplus{background:rgba(16,185,129,.12);color:var(--success);border:1px solid rgba(16,185,129,.2)}
+.pill-shortage{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.2)}
+.pill-expired{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.2)}
+.pill-near{background:rgba(245,158,11,.12);color:var(--warning);border:1px solid rgba(245,158,11,.2)}
+.pill-sys{background:rgba(59,130,246,.12);color:var(--accent2);border:1px solid rgba(59,130,246,.2)}
+.diff-pos{color:var(--success);font-weight:600}
+.diff-neg{color:var(--danger);font-weight:600}
+.days-chip{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600}
+.days-0-7{background:rgba(239,68,68,.15);color:#ff6b6b}
+.days-8-30{background:rgba(245,158,11,.15);color:#fbbf24}
+.days-31-90{background:rgba(16,185,129,.15);color:#34d399}
+.toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.search-wrap{position:relative;flex:1;min-width:180px}
+.search-wrap::before{content:'🔍';position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:11px;pointer-events:none}
+.search-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 34px 8px 12px;color:var(--text);font-size:12px;font-family:'IBM Plex Sans Arabic',sans-serif;outline:none;transition:border-color .2s}
+.search-box:focus{border-color:var(--accent)}
+.filter-sel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-size:11px;font-family:'IBM Plex Sans Arabic',sans-serif;outline:none;cursor:pointer}
+.count-label{font-size:10px;color:var(--text3);white-space:nowrap}
+.count-num{font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:600}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.loading{text-align:center;padding:60px;font-size:13px;color:var(--text3)}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:50px;color:var(--text3);font-size:13px}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px;flex-wrap:wrap;gap:8px}
+.page-btns{display:flex;gap:3px;flex-wrap:wrap}
+.page-btn{padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:7px;color:var(--text2);font-size:11px;cursor:pointer;font-family:'IBM Plex Sans Arabic',sans-serif;transition:all .15s}
+.page-btn:hover{border-color:var(--accent);color:var(--accent)}
+.page-btn.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.export-btn{padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--text2);font-size:11px;cursor:pointer;font-family:'IBM Plex Sans Arabic',sans-serif;transition:all .2s;display:flex;align-items:center;gap:5px}
+.export-btn:hover{border-color:var(--accent);color:var(--accent)}
+.export-all-btn{margin-top:14px;width:100%;padding:13px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;font-family:'IBM Plex Sans Arabic',sans-serif;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:8px}
+.export-all-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(139,92,246,.3)}
+.export-all-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+footer{border-top:1px solid var(--border);padding:18px 0;text-align:center;font-size:11px;color:var(--text3);margin-top:36px}
+.item-cell{min-width:200px}
+.item-num{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text3);margin-bottom:2px}
+.item-trade{color:var(--text);font-weight:600;font-size:11px;line-height:1.3}
+.sheet-tag{background:rgba(59,130,246,.1);color:var(--accent2);padding:1px 7px;border-radius:5px;font-size:9px;font-family:'JetBrains Mono',monospace}
+.loc-tag{font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">📦</div>
+        <div class="logo-text">
+          <h1>Inventory Dashboard</h1>
+          <p>مقارنة المخزون — تجميع بـ Trade Item Number + Generic Item Number</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="header-badge" id="lastUpdate">بيانات محملة مسبقاً</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="upload-section">
+    <div class="upload-grid">
+      <div class="upload-card" id="card-sys">
+        <input type="file" id="file-sys" accept=".xls,.xlsx" onchange="handleFile(this,'sys')">
+        <div class="upload-icon">🖥️</div>
+        <div class="upload-label">ملف السستم</div>
+        <div class="upload-sub">System Inventory Report (.xlsx)</div>
+        <div class="upload-filename" id="name-sys">اسحب الملف هنا أو اضغط للرفع</div>
+      </div>
+      <div class="upload-card" id="card-jard">
+        <input type="file" id="file-jard" accept=".xls,.xlsx" onchange="handleFile(this,'jard')">
+        <div class="upload-icon">📋</div>
+        <div class="upload-label">ملف الجرد</div>
+        <div class="upload-sub">Physical Count Report (.xlsx) — متعدد الأوراق</div>
+        <div class="upload-filename" id="name-jard">اسحب الملف هنا أو اضغط للرفع</div>
+      </div>
+    </div>
+    <button class="compare-btn" id="compareBtn" onclick="runComparison()" disabled>
+      ⚡ قارن الآن — ارفّع كلا الملفين أولاً
+    </button>
+  </div>
+
+  <div id="loading" style="display:none">
+    <div class="loading"><div class="spinner"></div>جاري تحليل البيانات ومقارنة الملفات...</div>
+  </div>
+
+  <div id="dashboard">
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-icon">📊</div><div class="kpi-value" id="kpi-sys">—</div><div class="kpi-label">أصناف النظام</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent2)"><div class="kpi-icon">📋</div><div class="kpi-value" id="kpi-jard">—</div><div class="kpi-label">أصناف الجرد</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--success)"><div class="kpi-icon">✅</div><div class="kpi-value" id="kpi-exact">—</div><div class="kpi-label">تطابق تام في الكمية</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--warning)"><div class="kpi-icon">⚠️</div><div class="kpi-value" id="kpi-diff">—</div><div class="kpi-label">اختلاف في الكمية</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--purple)"><div class="kpi-icon">🔍</div><div class="kpi-value" id="kpi-only-jard">—</div><div class="kpi-label">في الجرد فقط</div></div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);padding-top:0">
+      <div class="kpi-card" style="--kpi-color:var(--accent2)"><div class="kpi-icon">🔵</div><div class="kpi-value" id="kpi-only-sys">—</div><div class="kpi-label">في النظام فقط</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--success)"><div class="kpi-icon">📈</div><div class="kpi-value" id="kpi-surplus">—</div><div class="kpi-label">زيادة في الجرد</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-icon">🚨</div><div class="kpi-value" id="kpi-expired">—</div><div class="kpi-label">منتهية الصلاحية</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--warning)"><div class="kpi-icon">⏳</div><div class="kpi-value" id="kpi-near">—</div><div class="kpi-label">تنتهي خلال 90 يوم</div></div>
+    </div>
+
+    <button class="export-all-btn" id="exportAllBtn" onclick="exportAll()" disabled>
+      📥 تصدير جميع النتائج في ملف Excel واحد
+    </button>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('mismatches',this)" style="--tab-color:var(--warning)">⚠️ اختلاف الكميات<span class="badge" id="badge-mismatches">0</span></button>
+      <button class="tab" onclick="switchTab('jard-only',this)" style="--tab-color:var(--purple)">📋 في الجرد فقط<span class="badge" id="badge-jard">0</span></button>
+      <button class="tab" onclick="switchTab('sys-only',this)" style="--tab-color:var(--accent2)">🖥️ في النظام فقط<span class="badge" id="badge-sys">0</span></button>
+      <button class="tab" onclick="switchTab('expired',this)" style="--tab-color:var(--danger)">🚨 منتهية الصلاحية<span class="badge" id="badge-expired">0</span></button>
+      <button class="tab" onclick="switchTab('near-exp',this)" style="--tab-color:var(--warning)">⏳ قريبة الانتهاء<span class="badge" id="badge-near">0</span></button>
+    </div>
+
+    <!-- MISMATCHES PANEL -->
+    <div class="tab-panel active" id="panel-mismatches">
+      <div class="toolbar">
+        <div class="search-wrap"><input class="search-box" type="text" placeholder="ابحث عن صنف أو رقم..." oninput="filterTable('mismatches',this.value)"></div>
+        <select class="filter-sel" onchange="state.mismatchTypeFilter=this.value;applyFilters('mismatches')">
+          <option value="">الكل</option><option value="surplus">زيادة ⬆️</option><option value="shortage">نقص ⬇️</option>
+        </select>
+        <span class="count-label">عرض: <span class="count-num" id="count-mismatches">0</span></span>
+        <button class="export-btn" onclick="exportTable('mismatches')">⬇️ Excel</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr>
+          <th onclick="sortT('mismatches',0)">Generic Item # ↕</th>
+          <th onclick="sortT('mismatches',1)">Trade Item #</th>
+          <th>Trade Item Description ↕</th>
+          <th>LPN</th><th>LOT</th><th>الموقع / الرف</th>
+          <th onclick="sortT('mismatches',4)">الجرد ↕</th>
+          <th onclick="sortT('mismatches',5)">النظام ↕</th>
+          <th onclick="sortT('mismatches',6)">الفرق ↕</th>
+          <th>الحالة</th>
+        </tr></thead>
+        <tbody id="body-mismatches"></tbody>
+      </table></div>
+      <div class="pagination" id="pag-mismatches"></div>
+    </div>
+
+    <!-- JARD ONLY PANEL -->
+    <div class="tab-panel" id="panel-jard-only">
+      <div class="toolbar">
+        <div class="search-wrap"><input class="search-box" type="text" placeholder="ابحث..." oninput="filterTable('jard-only',this.value)"></div>
+        <span class="count-label">عرض: <span class="count-num" id="count-jard-only">0</span></span>
+        <button class="export-btn" onclick="exportTable('jard-only')">⬇️ Excel</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Generic Item #</th><th>Trade Item #</th><th>Trade Item Description</th><th>LPN</th><th>LOT</th><th>الموقع / الرف</th><th>الكمية</th><th>UOM</th><th>BBD</th></tr></thead>
+        <tbody id="body-jard-only"></tbody>
+      </table></div>
+      <div class="pagination" id="pag-jard-only"></div>
+    </div>
+
+    <!-- SYS ONLY PANEL -->
+    <div class="tab-panel" id="panel-sys-only">
+      <div class="toolbar">
+        <div class="search-wrap"><input class="search-box" type="text" placeholder="ابحث..." oninput="filterTable('sys-only',this.value)"></div>
+        <select class="filter-sel" onchange="state.sysStatusFilter=this.value;applyFilters('sys-only')">
+          <option value="">كل الحالات</option><option value="Available">متاح</option><option value="Expired">منتهي</option><option value="Nearly">قريب الانتهاء</option>
+        </select>
+        <span class="count-label">عرض: <span class="count-num" id="count-sys-only">0</span></span>
+        <button class="export-btn" onclick="exportTable('sys-only')">⬇️ Excel</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Generic Item #</th><th>Trade Item #</th><th>Trade Item Description</th><th>LPN</th><th>LOT</th><th>الموقع</th><th>التخزين</th><th onclick="sortT('sys-only',7)">الكمية الكلية ↕</th><th onclick="sortT('sys-only',8)">المتاح ↕</th><th>BBD</th><th>الحالة</th></tr></thead>
+        <tbody id="body-sys-only"></tbody>
+      </table></div>
+      <div class="pagination" id="pag-sys-only"></div>
+    </div>
+
+    <!-- EXPIRED PANEL -->
+    <div class="tab-panel" id="panel-expired">
+      <div class="toolbar">
+        <div class="search-wrap"><input class="search-box" type="text" placeholder="ابحث..." oninput="filterTable('expired',this.value)"></div>
+        <span class="count-label">عرض: <span class="count-num" id="count-expired">0</span></span>
+        <button class="export-btn" onclick="exportTable('expired')">⬇️ Excel</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Generic Item #</th><th>Trade Item #</th><th>Trade Item Description</th><th>LOT</th><th>الموقع</th><th>الرف</th><th>الكمية</th><th>UOM</th><th>تاريخ الانتهاء</th></tr></thead>
+        <tbody id="body-expired"></tbody>
+      </table></div>
+      <div class="pagination" id="pag-expired"></div>
+    </div>
+
+    <!-- NEAR EXP PANEL -->
+    <div class="tab-panel" id="panel-near-exp">
+      <div class="toolbar">
+        <div class="search-wrap"><input class="search-box" type="text" placeholder="ابحث..." oninput="filterTable('near-exp',this.value)"></div>
+        <select class="filter-sel" onchange="state.nearDaysFilter=this.value;applyFilters('near-exp')">
+          <option value="">كل الفترات</option><option value="7">خلال 7 أيام 🔴</option><option value="30">خلال 30 يوم 🟠</option><option value="90">خلال 90 يوم 🟢</option>
+        </select>
+        <span class="count-label">عرض: <span class="count-num" id="count-near-exp">0</span></span>
+        <button class="export-btn" onclick="exportTable('near-exp')">⬇️ Excel</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Generic Item #</th><th>Trade Item #</th><th>Trade Item Description</th><th>LOT</th><th>الموقع</th><th>الرف</th><th>الكمية</th><th>UOM</th><th onclick="sortT('near-exp',8)">تاريخ الانتهاء ↕</th><th onclick="sortT('near-exp',9)">الأيام المتبقية ↕</th></tr></thead>
+        <tbody id="body-near-exp"></tbody>
+      </table></div>
+      <div class="pagination" id="pag-near-exp"></div>
+    </div>
+  </div>
+</div>
+
+<footer><div class="container" style="display:flex;flex-direction:column;gap:6px;align-items:center">
+  <div>📦 Inventory Comparison Dashboard — Generic Item + Trade Item — Aggregated</div>
+  <div style="font-size:12px;color:var(--text2);font-weight:500">Prepared by: <span style="color:var(--accent);font-weight:600">Dr. Yazeed Al-Somair</span></div>
+</div></footer>
+
+<script>
+const state={sysData:null,jardData:null,summary:{},mismatches:[],onlyJard:[],onlySys:[],expired:[],nearExp:[],
+  filtered:{mismatches:[],['jard-only']:[],['sys-only']:[],expired:[],['near-exp']:[]},
+  pages:{mismatches:1,'jard-only':1,'sys-only':1,expired:1,'near-exp':1},
+  pageSize:50,sortState:{},mismatchTypeFilter:'',sysStatusFilter:'',nearDaysFilter:''};
+const LOADED={sys:false,jard:false};
+
+// Drag & Drop support
+document.addEventListener('DOMContentLoaded',()=>{
+  ['sys','jard'].forEach(type=>{
+    const card=document.getElementById('card-'+type);
+    if(!card)return;
+    ['dragenter','dragover'].forEach(ev=>{
+      card.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();card.style.borderColor='var(--accent)';card.style.background='rgba(0,212,170,.12)';});
+    });
+    ['dragleave','drop'].forEach(ev=>{
+      card.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();card.style.borderColor='';card.style.background='';});
+    });
+    card.addEventListener('drop',e=>{
+      const files=e.dataTransfer.files;
+      if(files.length>0){const input=document.getElementById('file-'+type);input.files=files;handleFile(input,type);}
+    });
+  });
+});
+
+function handleFile(input,type){
+  const file=input.files[0];if(!file)return;
+  document.getElementById('name-'+type).textContent=file.name;
+  document.getElementById('card-'+type).classList.add('active');
+  LOADED[type]=true;
+  if(LOADED.sys&&LOADED.jard){document.getElementById('compareBtn').disabled=false;document.getElementById('compareBtn').textContent='⚡ قارن الآن';}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+    if(type==='sys'){
+      const sheetName=wb.SheetNames.find(s=>s.includes('INV_STATUS')||s.includes('inv_status'))||wb.SheetNames[0];
+      state.sysData=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{defval:''});
+    }else{
+      let all=[];
+      wb.SheetNames.forEach(sn=>{const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''});rows.forEach(r=>r.__sheet=sn);all=all.concat(rows);});
+      state.jardData=all;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function runComparison(){
+  if(!state.sysData||!state.jardData){alert('ارفّع كلا الملفين أولاً');return;}
+  document.getElementById('loading').style.display='block';
+  document.getElementById('dashboard').style.display='none';
+  setTimeout(()=>{
+    try{processData();}catch(e){alert('خطأ: '+e.message);console.error(e);}
+    document.getElementById('loading').style.display='none';
+    document.getElementById('dashboard').style.display='block';
+    document.getElementById('lastUpdate').textContent='آخر تحديث: '+new Date().toLocaleTimeString('en-US');
+  },200);
+}
+
+function norm(v){return String(v||'').trim();}
+function toNum(v){const n=parseFloat(String(v).replace(/,/g,''));return isNaN(n)?0:n;}
+function fmtDate(v){if(!v)return '';if(v instanceof Date){try{return v.toISOString().substring(0,10);}catch(e){return '';}}return String(v).substring(0,10);}
+function toDate(v){if(!v)return null;if(v instanceof Date)return isNaN(v)?null:v;const d=new Date(v);return isNaN(d)?null:d;}
+
+function getPhysQty(r){
+  for(const k of Object.keys(r)){
+    const kl=k.toLowerCase();
+    if((kl.includes('physical')||kl.includes('physicall'))&&kl.includes('qty'))return toNum(r[k]);
+  }
+  for(const k of Object.keys(r)){if(k.toLowerCase().includes('check')&&k.toLowerCase().includes('qty'))return toNum(r[k]);}
+  for(const k of Object.keys(r)){if(k.toLowerCase()==='avail qty')return toNum(r[k]);}
+  for(const k of Object.keys(r)){if(k.toLowerCase()==='total qty')return toNum(r[k]);}
+  for(const k of Object.keys(r)){
+    const kl=k.toLowerCase();
+    if(kl.includes('qty')||kl.includes('quantity')||kl.includes('count'))return toNum(r[k]);
+  }
+  return 0;
+}
+
+function processData(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const d90=new Date(today);d90.setDate(d90.getDate()+90);
+
+  // System: aggregate by Trade Item Number only (exclude Staging locations)
+  const sysMap={};
+  state.sysData.forEach(r=>{
+    const gen=norm(r['Generic Item Number']||r['Generic_Item_Number']||r['GENERIC_ITEM_NUMBER']||'');
+    const trd=norm(r['Trade Item Number']||r['Trade_Item_Number']||r['TRADE_ITEM_NUMBER']||'');
+    if(!trd)return;
+    const loc=norm(r['Location']||'');
+    // Skip staging locations (e.g. 1SRSTG001) — these are not actual warehouse stock
+    if(loc.toUpperCase().includes('STG'))return;
+    const key=trd;
+    if(!sysMap[key]){sysMap[key]={gen,trd,total_qty:0,trade_desc:norm(r['Trade Item Description']||r['Trade_Item_Description']||''),generic_desc:norm(r['Generic Item description']||r['Generic Item Description']||''),custody:norm(r['Custody']||''),inv_status:norm(r['Inv Status']||r['INV_STATUS']||'Available'),locations:[],lots:[],lpns:[],bbd:norm(r['BBD']||'')};}
+    sysMap[key].total_qty+=toNum(r['Total Qty']||r['TOTAL_QTY']||0);
+    if(loc&&!sysMap[key].locations.includes(loc)&&sysMap[key].locations.length<3)sysMap[key].locations.push(loc);
+    const lot=norm(r['Lot/Batch']||r['LOT']||r['Lot']||'');if(lot&&!sysMap[key].lots.includes(lot)&&sysMap[key].lots.length<3)sysMap[key].lots.push(lot);
+    const lpn=norm(r['LPN']||r['Lpn']||r['lpn']||'');if(lpn&&!sysMap[key].lpns.includes(lpn)&&sysMap[key].lpns.length<3)sysMap[key].lpns.push(lpn);
+  });
+
+  // Physical (Jard): aggregate by Trade Item Number only
+  const jardMap={};
+  state.jardData.forEach(r=>{
+    const gen=norm(r['Generic Item Number']||r['Generic_Item_Number']||'');
+    const trd=norm(r['Trade Item Number']||r['Trade_Item_Number']||'');
+    if(!trd)return;
+    const key=trd;
+    const qty=getPhysQty(r);
+    if(!jardMap[key]){jardMap[key]={gen,trd,physical:0,sheets:new Set(),locations:[],trade_desc:norm(r['Trade Item Description']||r['Trade_Item_Description']||''),generic_desc:norm(r['Generic Item description']||r['Generic Item Description']||''),uom:norm(r['UOM']||''),lots:[],lpns:[],bbd_raw:[]};}
+    jardMap[key].physical+=qty;
+    if(r.__sheet)jardMap[key].sheets.add(r.__sheet);
+    const loc=norm(r['Location']||'');if(loc&&!jardMap[key].locations.includes(loc)&&jardMap[key].locations.length<3)jardMap[key].locations.push(loc);
+    const lot=norm(r['Lot/Batch']||r['LOT']||r['Lot']||'');if(lot&&!jardMap[key].lots.includes(lot)&&jardMap[key].lots.length<3)jardMap[key].lots.push(lot);
+    const lpn=norm(r['LPN']||r['Lpn']||r['lpn']||'');if(lpn&&!jardMap[key].lpns.includes(lpn)&&jardMap[key].lpns.length<3)jardMap[key].lpns.push(lpn);
+    const bbd=toDate(r['BBD']);if(bbd)jardMap[key].bbd_raw.push(bbd);
+  });
+
+  // Compare by Trade Item Number
+  const allJardKeys=Object.keys(jardMap);
+  const allSysKeys=Object.keys(sysMap);
+  const commonKeys=allJardKeys.filter(k=>sysMap[k]);
+  const onlyJKeys=allJardKeys.filter(k=>!sysMap[k]);
+  const onlySKeys=allSysKeys.filter(k=>!jardMap[k]);
+
+  state.mismatches=[];let exact=0;
+  commonKeys.forEach(key=>{
+    const jr=jardMap[key],sr=sysMap[key];
+    const physQty=jr.physical;
+    const sysQty=sr.total_qty;
+    const diff=physQty-sysQty;
+    const desc=sr.trade_desc||jr.trade_desc||sr.generic_desc||jr.generic_desc||'';
+    if(diff===0){exact++;return;}
+    state.mismatches.push({generic_item_num:sr.gen||jr.gen,trade_item_num:jr.trd,trade_desc:desc,sheets:[...jr.sheets].join(', '),locations:jr.locations.join(', '),physical:physQty,system:sysQty,diff,type:diff>0?'surplus':'shortage'});
+  });
+  state.mismatches.sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
+
+  state.onlyJard=onlyJKeys.map(key=>{
+    const jr=jardMap[key];
+    const bdds=jr.bbd_raw.filter(Boolean);
+    return{generic_item_num:jr.gen,trade_item_num:jr.trd,trade_desc:jr.trade_desc||jr.generic_desc,sheets:[...jr.sheets].join(', '),locations:jr.locations.join(', '),physical:jr.physical,uom:jr.uom,bbd:bdds.length?fmtDate(bdds.reduce((a,b)=>a<b?a:b)):''};
+  });
+
+  state.onlySys=onlySKeys.map(key=>{
+    const sr=sysMap[key];
+    return{generic_item_num:sr.gen,trade_item_num:sr.trd,trade_desc:sr.trade_desc||sr.generic_desc,custody:sr.custody,system_qty:sr.total_qty,inv_status:sr.inv_status,location:sr.locations.join(', '),bbd:sr.bbd};
+  }).sort((a,b)=>b.system_qty-a.system_qty);
+
+  // Expired & Near Expiry from raw jard rows
+  state.expired=[];state.nearExp=[];
+  state.jardData.forEach(r=>{
+    const bbd=toDate(r['BBD']);if(!bbd)return;
+    const bd=new Date(bbd);bd.setHours(0,0,0,0);
+    const gen=norm(r['Generic Item Number']||r['Generic_Item_Number']||'');
+    const trd=norm(r['Trade Item Number']||r['Trade_Item_Number']||'');
+    const obj={generic_item_num:gen,trade_item_num:trd,trade_desc:norm(r['Trade Item Description']||r['Trade_Item_Description']||r['Generic Item description']||''),lot:norm(r['Lot/Batch']||''),location:norm(r['Location']||''),sheet:norm(r.__sheet||''),bbd:fmtDate(bbd),qty:getPhysQty(r),uom:norm(r['UOM']||''),days:Math.round((bd-today)/86400000)};
+    if(bd<today)state.expired.push(obj);
+    else if(bd<=d90)state.nearExp.push(obj);
+  });
+  state.nearExp.sort((a,b)=>a.days-b.days);
+
+  state.summary={total_system:Object.keys(sysMap).length,total_jard:Object.keys(jardMap).length,matched:commonKeys.length,exact,surplus:state.mismatches.filter(x=>x.type==='surplus').length,shortage:state.mismatches.filter(x=>x.type==='shortage').length,only_jard:state.onlyJard.length,only_sys:state.onlySys.length,expired:state.expired.length,near_exp:state.nearExp.length};
+  renderAll();
+}
+
+function fmt(n){return Number(n).toLocaleString('en-US');}
+
+function renderAll(){
+  const s=state.summary;
+  document.getElementById('kpi-sys').textContent=fmt(s.total_system);
+  document.getElementById('kpi-jard').textContent=fmt(s.total_jard);
+  document.getElementById('kpi-exact').textContent=fmt(s.exact);
+  document.getElementById('kpi-diff').textContent=fmt(state.mismatches.length);
+  document.getElementById('kpi-only-jard').textContent=fmt(s.only_jard);
+  document.getElementById('kpi-only-sys').textContent=fmt(s.only_sys);
+  document.getElementById('kpi-surplus').textContent=fmt(s.surplus);
+  document.getElementById('kpi-expired').textContent=fmt(s.expired);
+  document.getElementById('kpi-near').textContent=fmt(s.near_exp);
+  document.getElementById('badge-mismatches').textContent=fmt(state.mismatches.length);
+  document.getElementById('badge-jard').textContent=fmt(state.onlyJard.length);
+  document.getElementById('badge-sys').textContent=fmt(state.onlySys.length);
+  document.getElementById('badge-expired').textContent=fmt(state.expired.length);
+  document.getElementById('badge-near').textContent=fmt(state.nearExp.length);
+  ['mismatches','jard-only','sys-only','expired','near-exp'].forEach(t=>applyFilters(t));
+  const eab=document.getElementById('exportAllBtn');if(eab)eab.disabled=false;
+}
+
+function applyFilters(tab){
+  let data;
+  if(tab==='mismatches')data=state.mismatches.filter(r=>!state.mismatchTypeFilter||r.type===state.mismatchTypeFilter);
+  else if(tab==='jard-only')data=[...state.onlyJard];
+  else if(tab==='sys-only')data=state.onlySys.filter(r=>{
+    if(!state.sysStatusFilter)return true;
+    if(state.sysStatusFilter==='Expired')return r.inv_status.includes('Expired');
+    if(state.sysStatusFilter==='Nearly')return r.inv_status.includes('Nearly');
+    return r.inv_status==='Available';
+  });
+  else if(tab==='expired')data=[...state.expired];
+  else if(tab==='near-exp')data=state.nearExp.filter(r=>!state.nearDaysFilter||r.days<=parseInt(state.nearDaysFilter));
+  state.filtered[tab]=data;state.pages[tab]=1;renderTable(tab);
+}
+
+function filterTable(tab,q){
+  q=q.toLowerCase();
+  const base={mismatches:state.mismatches,'jard-only':state.onlyJard,'sys-only':state.onlySys,expired:state.expired,'near-exp':state.nearExp}[tab];
+  state.filtered[tab]=base.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  state.pages[tab]=1;renderTable(tab);
+}
+
+function renderTable(tab){
+  const data=state.filtered[tab];
+  const page=state.pages[tab],ps=state.pageSize;
+  const pageData=data.slice((page-1)*ps,page*ps);
+  const totalPages=Math.ceil(data.length/ps);
+  const el=document.getElementById('count-'+tab);if(el)el.textContent=fmt(data.length);
+  const tbody=document.getElementById('body-'+tab);if(!tbody)return;
+  if(!data.length){tbody.innerHTML='<tr><td colspan="10"><div class="empty"><div class="empty-icon">✅</div>لا توجد بيانات في هذه الفئة</div></td></tr>';document.getElementById('pag-'+tab).innerHTML='';return;}
+  let html='';
+  pageData.forEach(r=>{
+    if(tab==='mismatches'){
+      const pc=r.type==='surplus'?'pill-surplus':'pill-shortage';
+      const pl=r.type==='surplus'?'⬆️ زيادة':'⬇️ نقص';
+      const dc=r.diff>0?'diff-pos':'diff-neg';
+      html+=`<tr>
+        <td><div class="item-num">${r.generic_item_num}</div></td>
+        <td><div class="item-num">${r.trade_item_num}</div></td>
+        <td class="item-cell"><div class="item-trade">${r.trade_desc}</div><div class="td-sub">${r.sheet?'<span class="sheet-tag">'+r.sheet+'</span>':''}</div></td>
+        <td class="mono" style="font-size:9px">${r.lpn||''}</td>
+        <td class="mono" style="font-size:9px">${r.lot||''}</td>
+        <td class="loc-tag">${r.location||''}</td>
+        <td style="text-align:center;font-weight:600;color:var(--text)">${fmt(r.physical)}</td>
+        <td style="text-align:center;color:var(--text2)">${fmt(r.system)}</td>
+        <td style="text-align:center" class="${dc}">${r.diff>0?'+':''}${fmt(r.diff)}</td>
+        <td><span class="pill ${pc}">${pl}</span></td>
+      </tr>`;
+    }else if(tab==='jard-only'){
+      html+=`<tr>
+        <td class="td-mono">${r.generic_item_num}</td>
+        <td class="td-mono">${r.trade_item_num}</td>
+        <td class="item-cell"><div class="item-trade">${r.trade_desc}</div><div class="td-sub">${r.sheet?'<span class="sheet-tag">'+r.sheet+'</span>':''}</div></td>
+        <td class="mono" style="font-size:9px">${r.lpn||''}</td>
+        <td class="mono" style="font-size:9px">${r.lot||''}</td>
+        <td class="loc-tag">${r.location||''}</td>
+        <td style="text-align:center;font-weight:600">${fmt(r.physical_qty||0)}</td>
+        <td class="td-mono">${r.uom}</td>
+        <td class="td-mono">${r.bbd}</td>
+      </tr>`;
+    }else if(tab==='sys-only'){
+      const sc=r.inv_status.includes('Expired')?'pill-expired':r.inv_status.includes('Nearly')?'pill-near':'pill-sys';
+      html+=`<tr>
+        <td class="td-mono">${r.generic_item_num}</td>
+        <td class="td-mono">${r.trade_item_num}</td>
+        <td class="item-cell"><div class="item-trade">${r.trade_desc}</div></td>
+        <td class="mono" style="font-size:9px">${r.lpn||''}</td>
+        <td class="mono" style="font-size:9px">${r.lot||''}</td>
+        <td class="loc-tag">${r.location||''}</td>
+        <td style="font-size:10px;color:var(--text3)">${r.custody}</td>
+        <td style="text-align:center;font-weight:600;color:var(--text)">${fmt(r.total_qty||r.system_qty||0)}</td>
+        <td style="text-align:center;color:var(--text2)">${fmt(r.avail_qty)}</td>
+        <td class="td-mono">${r.bbd||''}</td>
+        <td><span class="pill ${sc}">${r.inv_status}</span></td>
+      </tr>`;
+    }else if(tab==='expired'){
+      html+=`<tr>
+        <td class="td-mono">${r.generic_item_num}</td>
+        <td class="td-mono">${r.trade_item_num}</td>
+        <td class="item-cell"><div class="item-trade">${r.trade_desc}</div></td>
+        <td class="td-mono">${r.lpn||r.lot||''}</td>
+        <td class="td-mono">${r.lot}</td>
+        <td class="loc-tag">${r.location}</td>
+        <td><span class="sheet-tag" style="background:rgba(239,68,68,.1);color:var(--danger)">${r.sheet}</span></td>
+        <td style="text-align:center;font-weight:600;color:var(--danger)">${fmt(r.physical_qty||r.qty||0)}</td>
+        <td class="td-mono">${r.uom}</td>
+        <td><span class="pill pill-expired">🚨 ${r.bbd}</span></td>
+      </tr>`;
+    }else if(tab==='near-exp'){
+      const dc=r.days<=7?'days-0-7':r.days<=30?'days-8-30':'days-31-90';
+      html+=`<tr>
+        <td class="td-mono">${r.generic_item_num}</td>
+        <td class="td-mono">${r.trade_item_num}</td>
+        <td class="item-cell"><div class="item-trade">${r.trade_desc}</div></td>
+        <td class="td-mono">${r.lpn||''}</td>
+        <td class="td-mono">${r.lot}</td>
+        <td class="loc-tag">${r.location}</td>
+        <td><span class="sheet-tag" style="background:rgba(245,158,11,.1);color:var(--warning)">${r.sheet}</span></td>
+        <td style="text-align:center;font-weight:600">${fmt(r.physical_qty||r.qty||0)}</td>
+        <td class="td-mono">${r.uom}</td>
+        <td class="td-mono">${r.bbd}</td>
+        <td style="text-align:center"><span class="days-chip ${dc}">${r.days} يوم</span></td>
+      </tr>`;
+    }
+  });
+  tbody.innerHTML=html;
+  renderPag(tab,totalPages);
+}
+
+function renderPag(tab,total){
+  const pag=document.getElementById('pag-'+tab);if(!pag)return;
+  if(total<=1){pag.innerHTML='';return;}
+  const cur=state.pages[tab];
+  const ms=7;let s=Math.max(1,cur-3),e=Math.min(total,s+ms-1);
+  if(e-s<ms-1)s=Math.max(1,e-ms+1);
+  let btns='';
+  if(s>1)btns+=`<button class="page-btn" onclick="goP('${tab}',1)">1</button>`;
+  if(s>2)btns+=`<span style="color:var(--text3);padding:0 4px">...</span>`;
+  for(let i=s;i<=e;i++)btns+=`<button class="page-btn${i===cur?' active':''}" onclick="goP('${tab}',${i})">${i}</button>`;
+  if(e<total-1)btns+=`<span style="color:var(--text3);padding:0 4px">...</span>`;
+  if(e<total)btns+=`<button class="page-btn" onclick="goP('${tab}',${total})">${total}</button>`;
+  const show=((cur-1)*state.pageSize+1)+'–'+Math.min(cur*state.pageSize,state.filtered[tab].length);
+  pag.innerHTML=`<span class="count-label">${show} من ${fmt(state.filtered[tab].length)}</span><div class="page-btns">${btns}</div>`;
+}
+
+function goP(tab,p){state.pages[tab]=p;renderTable(tab);}
+
+function sortT(tab,col){
+  const key=tab+'_'+col;const asc=state.sortState[key]=!state.sortState[key];
+  state.filtered[tab].sort((a,b)=>{
+    const av=Object.values(a)[col]??'',bv=Object.values(b)[col]??'';
+    const an=parseFloat(av),bn=parseFloat(bv);
+    if(!isNaN(an)&&!isNaN(bn))return asc?an-bn:bn-an;
+    return asc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
+  });
+  state.pages[tab]=1;renderTable(tab);
+}
+
+function switchTab(id,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+id).classList.add('active');
+}
+
+function exportTable(tab){
+  const data=state.filtered[tab];
+  if(!data||!data.length){alert('لا توجد بيانات للتصدير');return;}
+  const ws=XLSX.utils.json_to_sheet(data);
+  const wb=XLSX.utils.book_new();
+  const names={mismatches:'اختلافات_الكمية','jard-only':'في_الجرد_فقط','sys-only':'في_النظام_فقط',expired:'منتهية_الصلاحية','near-exp':'قريبة_الانتهاء',missing:'الأصناف_الغائبة'};
+  XLSX.utils.book_append_sheet(wb,ws,names[tab]||tab);
+  XLSX.writeFile(wb,'inventory_'+tab+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+function exportAll(){
+  const wb=XLSX.utils.book_new();
+  const sections=[
+    {key:'mismatches',name:'اختلافات الكمية',data:state.mismatches},
+    {key:'jard-only',name:'في الجرد فقط',data:state.onlyJard},
+    {key:'sys-only',name:'في النظام فقط',data:state.onlySys},
+    {key:'expired',name:'منتهية الصلاحية',data:state.expired},
+    {key:'near-exp',name:'قريبة الانتهاء',data:state.nearExp}
+  ];
+
+  // 1) Summary sheet
+  const summaryRows=[
+    {البيان:'إجمالي أصناف النظام',القيمة:state.summary.total_system||0},
+    {البيان:'إجمالي أصناف الجرد',القيمة:state.summary.total_jard||0},
+    {البيان:'تطابق تام',القيمة:state.summary.exact||0},
+    {البيان:'اختلاف في الكمية',القيمة:state.mismatches.length},
+    {البيان:'زيادة في الجرد',القيمة:state.summary.surplus||0},
+    {البيان:'نقص في الجرد',القيمة:state.summary.shortage||0},
+    {البيان:'في الجرد فقط',القيمة:state.onlyJard.length},
+    {البيان:'في النظام فقط',القيمة:state.onlySys.length},
+    {البيان:'منتهية الصلاحية',القيمة:state.expired.length},
+    {البيان:'تنتهي خلال 90 يوم',القيمة:state.nearExp.length}
+  ];
+  const wsSummary=XLSX.utils.json_to_sheet(summaryRows);
+  wsSummary['!cols']=[{wch:25},{wch:15}];
+  XLSX.utils.book_append_sheet(wb,wsSummary,'ملخص');
+
+  // 2) Data sheets
+  let hasData=false;
+  sections.forEach(s=>{
+    if(s.data&&s.data.length>0){
+      hasData=true;
+      const ws=XLSX.utils.json_to_sheet(s.data);
+      // Auto-size columns
+      const cols=Object.keys(s.data[0]).map(k=>({wch:Math.max(k.length+2,12)}));
+      ws['!cols']=cols;
+      XLSX.utils.book_append_sheet(wb,ws,s.name);
+    }
+  });
+
+  if(!hasData){alert('لا توجد بيانات للتصدير');return;}
+  XLSX.writeFile(wb,'تقرير_المقارنة_الكامل_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// Dashboard starts clean — upload both files and click compare
+
+</script>
+</body>
+</html>
